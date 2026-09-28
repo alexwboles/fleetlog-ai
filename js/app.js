@@ -88,7 +88,7 @@
         var div = document.createElement('div');
         div.className = 'vrow';
         div.innerHTML =
-          (v.photo ? '<img src="' + v.photo + '" alt="">' : '<img src="" alt="" style="visibility:hidden">') +
+          (v.photo ? '<img src="' + v.photo + '" alt="photo of ' + esc(v.name) + '">' : '') +
           '<div class="meta"><div class="nm">' + esc(v.name) + '</div>' +
           '<div class="sub">' + esc([v.year, v.make, v.model].filter(Boolean).join(' ')) +
           ' · ' + esc(v.type) + ' · ' + money(t.total) + ' total spend</div></div>' +
@@ -159,7 +159,7 @@
       var div = document.createElement('div');
       div.className = 'vrow';
       div.innerHTML =
-        (v.photo ? '<img src="' + v.photo + '" alt="">' : '<img src="" alt="" style="visibility:hidden">') +
+        (v.photo ? '<img src="' + v.photo + '" alt="photo of ' + esc(v.name) + '">' : '') +
         '<div class="meta"><div class="nm">' + esc(v.name) + '</div>' +
         '<div class="sub">' + esc([v.year, v.make, v.model, v.type].filter(Boolean).join(' · ')) +
         (v.plate ? ' · plate ' + esc(v.plate) : '') + ' · ' + money(t.total) + ' spend</div></div>' +

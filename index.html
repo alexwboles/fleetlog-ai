@@ -4,30 +4,43 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FleetLog AI — vehicle logs, fuel tracking & maintenance alerts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">FleetLog <span>AI</span></div>
-  <nav>
-    <button data-view="dashboard" class="active">Dashboard</button>
-    <button data-view="vehicles">Vehicles</button>
-    <button data-view="fuel">Fuel log</button>
-    <button data-view="maintenance">Maintenance</button>
-  </nav>
+  <div class="wrap topbar-in">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M2 13V6h9v7M11 9h4l3 3v1" stroke="#1c1917" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="15.5" r="1.8" stroke="#1c1917" stroke-width="1.8"/><circle cx="15" cy="15.5" r="1.8" stroke="#1c1917" stroke-width="1.8"/></svg>
+      </span>
+      <div class="brand-text"><strong>FleetLog <span>AI</span></strong><span class="brand-sub">Fleet operations</span></div>
+    </div>
+    <nav aria-label="Sections">
+      <button data-view="dashboard" class="active">Dashboard</button>
+      <button data-view="vehicles">Vehicles</button>
+      <button data-view="fuel">Fuel log</button>
+      <button data-view="maintenance">Maintenance</button>
+    </nav>
+  </div>
 </header>
 
-<main>
+<main class="wrap">
   <!-- DASHBOARD VIEW -->
   <section id="view-dashboard" class="view">
+    <p class="kicker">Operations</p>
+    <h2 class="title">Fleet dashboard</h2>
+    <p class="lede">Health, spend, and fuel economy across every rig — at a glance.</p>
     <div class="stat-grid">
       <div class="stat"><div class="num" id="stCount">0</div><div class="cap">Vehicles & equipment</div></div>
       <div class="stat"><div class="num" id="stSpend">$0</div><div class="cap">Total spend this year</div></div>
-      <div class="stat"><div class="num" id="stAttention">0</div><div class="cap">Needing attention</div></div>
+      <div class="stat warn"><div class="num" id="stAttention">0</div><div class="cap">Needing attention</div></div>
       <div class="stat"><div class="num" id="stMpg">—</div><div class="cap">Fleet avg MPG</div></div>
     </div>
     <div class="card">
-      <h2>Needs attention</h2>
+      <div class="card-head"><h3>Needs attention</h3><span class="card-note">Overdue or due soon</span></div>
       <div id="alertList"><p class="muted">Add a vehicle to start tracking maintenance.</p></div>
     </div>
     <h3 class="section-title">Fleet overview</h3>
@@ -36,12 +49,15 @@
 
   <!-- VEHICLES VIEW -->
   <section id="view-vehicles" class="view hidden">
+    <p class="kicker">Garage</p>
+    <h2 class="title">Vehicles & equipment</h2>
+    <p class="lede">Every rig on the books, with its papers in order.</p>
     <div class="grid">
       <div class="card">
-        <h2>Add a vehicle / equipment</h2>
-        <label>Name <input id="vName" placeholder="Truck #1 — F-150"></label>
+        <div class="card-head"><h3>Add a vehicle / equipment</h3></div>
+        <label class="field"><span class="lbl">Name</span><input id="vName" placeholder="Truck #1 — F-150"></label>
         <div class="row2">
-          <label>Type
+          <label class="field"><span class="lbl">Type</span>
             <select id="vType">
               <option value="truck">Truck</option>
               <option value="van">Van</option>
@@ -50,23 +66,23 @@
               <option value="equipment">Equipment</option>
             </select>
           </label>
-          <label>Year <input id="vYear" type="number" min="1950" max="2100" placeholder="2021"></label>
+          <label class="field"><span class="lbl">Year</span><input id="vYear" type="number" min="1950" max="2100" placeholder="2021"></label>
         </div>
         <div class="row2">
-          <label>Make <input id="vMake" placeholder="Ford"></label>
-          <label>Model <input id="vModel" placeholder="F-150"></label>
+          <label class="field"><span class="lbl">Make</span><input id="vMake" placeholder="Ford"></label>
+          <label class="field"><span class="lbl">Model</span><input id="vModel" placeholder="F-150"></label>
         </div>
         <div class="row2">
-          <label>VIN (optional) <input id="vVin" placeholder="1FTFW1E5…"></label>
-          <label>Plate (optional) <input id="vPlate" placeholder="ABC-1234"></label>
+          <label class="field"><span class="lbl">VIN <em>(optional)</em></span><input id="vVin" placeholder="1FTFW1E5…"></label>
+          <label class="field"><span class="lbl">Plate <em>(optional)</em></span><input id="vPlate" placeholder="ABC-1234"></label>
         </div>
-        <label>Photo (optional, ≤300 KB) <input id="vPhoto" type="file" accept="image/*"></label>
+        <label class="field"><span class="lbl">Photo <em>(optional, ≤300 KB)</em></span><input id="vPhoto" type="file" accept="image/*"></label>
         <img id="vPhotoPreview" class="photo-preview hidden" alt="photo preview">
         <p id="vPhotoNote" class="muted small hidden"></p>
         <button id="saveVehicle" class="primary">Save vehicle</button>
       </div>
       <div class="card">
-        <h2>Your fleet</h2>
+        <div class="card-head"><h3>Your fleet</h3></div>
         <div id="vehList" class="vlist"><p class="muted">No vehicles yet — add your first above.</p></div>
       </div>
     </div>
@@ -74,22 +90,25 @@
 
   <!-- FUEL LOG VIEW -->
   <section id="view-fuel" class="view hidden">
+    <p class="kicker">Fuel</p>
+    <h2 class="title">Fuel log</h2>
+    <p class="lede">Every fill-up, with MPG computed automatically.</p>
     <div class="grid">
       <div class="card">
-        <h2>Log a fill-up</h2>
-        <label>Vehicle <select id="fVehicle"></select></label>
-        <label>Date <input id="fDate" type="date"></label>
+        <div class="card-head"><h3>Log a fill-up</h3></div>
+        <label class="field"><span class="lbl">Vehicle</span><select id="fVehicle"></select></label>
+        <label class="field"><span class="lbl">Date</span><input id="fDate" type="date"></label>
         <div class="row3">
-          <label><span id="fOdoLabel">Odometer</span> <input id="fOdo" type="number" min="0" step="1" placeholder="10380"></label>
-          <label>Gallons <input id="fGal" type="number" min="0" step="0.01" placeholder="19.0"></label>
-          <label>Price / gal ($) <input id="fPrice" type="number" min="0" step="0.001" placeholder="3.599"></label>
+          <label class="field"><span class="lbl" id="fOdoLabel">Odometer</span><input id="fOdo" type="number" min="0" step="1" placeholder="10380"></label>
+          <label class="field"><span class="lbl">Gallons</span><input id="fGal" type="number" min="0" step="0.01" placeholder="19.0"></label>
+          <label class="field"><span class="lbl">Price / gal ($)</span><input id="fPrice" type="number" min="0" step="0.001" placeholder="3.599"></label>
         </div>
-        <p class="muted">Fill-up cost: <strong id="fCostPreview">$0.00</strong></p>
+        <p class="cost-line">Fill-up cost: <strong id="fCostPreview">$0.00</strong></p>
         <button id="saveFuel" class="primary">Save fill-up</button>
       </div>
       <div class="card">
-        <h2>Fuel history</h2>
-        <label>Vehicle <select id="fHistVehicle"></select></label>
+        <div class="card-head"><h3>Fuel history</h3></div>
+        <label class="field"><span class="lbl">Vehicle</span><select id="fHistVehicle"></select></label>
         <div id="fuelList"><p class="muted">Select a vehicle to see its fuel log.</p></div>
       </div>
     </div>
@@ -97,28 +116,31 @@
 
   <!-- MAINTENANCE VIEW -->
   <section id="view-maintenance" class="view hidden">
+    <p class="kicker">Shop</p>
+    <h2 class="title">Maintenance</h2>
+    <p class="lede">Service intervals by miles or months — the board flags what's due.</p>
     <div class="card">
-      <h2>Service schedule & history</h2>
-      <label>Vehicle <select id="mVehicle"></select></label>
+      <div class="card-head"><h3>Service schedule & history</h3></div>
+      <label class="field inline-field"><span class="lbl">Vehicle</span><select id="mVehicle"></select></label>
       <div id="svcTable"></div>
     </div>
-    <div class="grid" style="margin-top:20px">
+    <div class="grid" style="margin-top:18px">
       <div class="card">
-        <h2>Mark service done</h2>
-        <label>Service <select id="sType"></select></label>
-        <label>Date <input id="sDate" type="date"></label>
+        <div class="card-head"><h3>Mark service done</h3></div>
+        <label class="field"><span class="lbl">Service</span><select id="sType"></select></label>
+        <label class="field"><span class="lbl">Date</span><input id="sDate" type="date"></label>
         <div class="row2">
-          <label><span id="sOdoLabel">Odometer</span> <input id="sOdo" type="number" min="0" step="1" placeholder="10380"></label>
-          <label>Cost ($) <input id="sCost" type="number" min="0" step="0.01" placeholder="89.99"></label>
+          <label class="field"><span class="lbl" id="sOdoLabel">Odometer</span><input id="sOdo" type="number" min="0" step="1" placeholder="10380"></label>
+          <label class="field"><span class="lbl">Cost ($)</span><input id="sCost" type="number" min="0" step="0.01" placeholder="89.99"></label>
         </div>
-        <label>Notes <input id="sNotes" placeholder="Full synthetic, rotated tires…"></label>
+        <label class="field"><span class="lbl">Notes</span><input id="sNotes" placeholder="Full synthetic, rotated tires…"></label>
         <button id="saveService" class="primary">Record service</button>
-        <div id="svcHistory" style="margin-top:16px"></div>
+        <div id="svcHistory" style="margin-top:18px"></div>
       </div>
       <div class="card">
-        <h2>Cost per mile</h2>
+        <div class="card-head"><h3>Cost per mile</h3></div>
         <p class="muted">Total fuel + maintenance costs ÷ miles driven.</p>
-        <label>Period
+        <label class="field"><span class="lbl">Period</span>
           <select id="cpmPeriod">
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
@@ -133,6 +155,10 @@
     </div>
   </section>
 </main>
+
+<footer class="wrap foot">
+  <p>FleetLog AI · 100% local — your fleet data never leaves this browser.</p>
+</footer>
 
 <script src="lib/logic.js"></script>
 <script src="js/app.js"></script>
