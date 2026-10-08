@@ -48,6 +48,12 @@
   }
 
   // ---------- dashboard ----------
+  var fleetSearchQuery = '';
+  document.getElementById('fleetSearch').addEventListener('input', function (e) {
+    fleetSearchQuery = e.target.value;
+    renderDashboard();
+  });
+
   function renderDashboard() {
     var list = load(), now = todayISO();
     var s = F.fleetSummary(list, now);
@@ -79,10 +85,12 @@
     }
 
     var cards = document.getElementById('fleetCards');
+    var visible = F.filterVehicles(list, fleetSearchQuery);
     if (!list.length) { cards.innerHTML = '<p class="muted">No vehicles yet — add your first under the Vehicles tab.</p>'; }
+    else if (!visible.length) { cards.innerHTML = '<p class="muted">No vehicles match "' + esc(fleetSearchQuery) + '".</p>'; }
     else {
       cards.innerHTML = '';
-      list.forEach(function (v) {
+      visible.forEach(function (v) {
         var t = F.vehicleTotals(v);
         var att = F.needsAttention(v, now).filter(function (a) { return a.status !== 'ok'; }).length;
         var div = document.createElement('div');
@@ -228,21 +236,68 @@
   });
 
   document.getElementById('fHistVehicle').addEventListener('change', function () {
+    fuelSort = 'date'; fuelSortDir = 'desc';
+    var sel = document.getElementById('fuelSort');
+    if (sel) sel.value = 'date-desc';
     renderFuelHistory(this.value);
   });
+
+  var fuelSort = 'date', fuelSortDir = 'desc';
 
   function renderFuelHistory(id) {
     var box = document.getElementById('fuelList');
     var v = id ? getVehicle(id) : null;
     if (!v) { box.innerHTML = '<p class="muted">Select a vehicle to see its fuel log.</p>'; return; }
     if (!v.fuel.length) { box.innerHTML = '<p class="muted">No fill-ups logged yet for ' + esc(v.name) + '.</p>'; return; }
-    var rows = v.fuel.slice().reverse().map(function (e) {
+    var anomalies = F.mpgAnomalies(v);
+    var rows = F.sortFuel(v, fuelSort, fuelSortDir).map(function (e) {
+      var an = anomalies[e.id];
       return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.odo) + '</td><td>' + esc(e.gallons) +
         '</td><td>' + money(e.pricePerGallon) + '</td><td>' + money(e.cost) + '</td><td>' +
-        (e.mpg == null ? '—' : e.mpg) + '</td></tr>';
+        (e.mpg == null ? '—' : e.mpg) +
+        (an ? ' <span class="anom" title="MPG ' + an.dropPct + '% below recent average (' + an.avg + ') — possible fuel waste">⚠ low</span>' : '') +
+        '</td><td><button class="link danger-link" data-delfuel="' + e.id + '">delete</button></td></tr>';
     }).join('');
-    box.innerHTML = '<table class="data"><tr><th>Date</th><th>Reading</th><th>Gal</th><th>$/gal</th><th>Cost</th><th>MPG</th></tr>' +
+    box.innerHTML =
+      '<div class="hist-toolbar"><label class="muted small">Sort <select id="fuelSort">' +
+      [['date-desc', 'Newest first'], ['date-asc', 'Oldest first'], ['mpg-desc', 'Best MPG'], ['mpg-asc', 'Worst MPG'],
+       ['cost-desc', 'Highest cost'], ['cost-asc', 'Lowest cost']].map(function (o) {
+        return '<option value="' + o[0] + '"' + ((fuelSort + '-' + fuelSortDir) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('') + '</select></label>' +
+      '<button class="ghost" id="exportFuel">Export fuel CSV</button></div>' +
+      '<table class="data"><tr><th>Date</th><th>Reading</th><th>Gal</th><th>$/gal</th><th>Cost</th><th>MPG</th><th></th></tr>' +
       rows + '</table>';
+    document.getElementById('fuelSort').addEventListener('change', function () {
+      var parts = this.value.split('-');
+      fuelSort = parts[0]; fuelSortDir = parts[1];
+      renderFuelHistory(id);
+    });
+    box.querySelectorAll('[data-delfuel]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Delete this fill-up? MPG numbers for later fill-ups will shift.')) return;
+        var vv = getVehicle(id);
+        F.deleteFuelEntry(vv, b.getAttribute('data-delfuel'));
+        // recompute MPG for entries after the deletion (their "previous" fill-up changed)
+        vv.fuel.forEach(function (e, i) {
+          var prev = i > 0 ? vv.fuel[i - 1] : null;
+          e.mpg = prev ? F.mpgFor(prev.odo, e.odo, e.gallons) : null;
+        });
+        upsert(vv);
+        renderFuelHistory(id);
+      });
+    });
+    document.getElementById('exportFuel').addEventListener('click', function () {
+      downloadCSV(F.fuelToCSV(getVehicle(id)), v.name.replace(/[^a-z0-9]+/gi, '-') + '-fuel.csv');
+    });
+  }
+
+  function downloadCSV(csv, filename) {
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
   }
 
   function renderFuel() {
@@ -318,12 +373,17 @@
     var hb = document.getElementById('svcHistory');
     var hist = (v.history || []).slice().reverse();
     hb.innerHTML = '<h3>Service history</h3>' +
-      (hist.length ? '<table class="data"><tr><th>Date</th><th>Service</th><th>Reading</th><th>Cost</th><th>Notes</th></tr>' +
+      (hist.length ? '<div class="hist-toolbar"><button class="ghost" id="exportSvc">Export service CSV</button></div>' +
+        '<table class="data"><tr><th>Date</th><th>Service</th><th>Reading</th><th>Cost</th><th>Notes</th></tr>' +
         hist.map(function (e) {
           return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.typeName) + '</td><td>' + esc(e.odo || '—') +
             '</td><td>' + money(e.cost) + '</td><td>' + esc(e.notes || '') + '</td></tr>';
         }).join('') + '</table>'
         : '<p class="muted">No service records yet.</p>');
+    var exBtn = document.getElementById('exportSvc');
+    if (exBtn) exBtn.addEventListener('click', function () {
+      downloadCSV(F.serviceToCSV(v), v.name.replace(/[^a-z0-9]+/gi, '-') + '-service.csv');
+    });
   }
 
   document.getElementById('mVehicle').addEventListener('change', renderMaintenance);

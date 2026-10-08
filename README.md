@@ -9,7 +9,7 @@ Small contractors, landscapers, and trades run trucks, vans, trailers, and equip
 FleetLog AI is a single-page app you open in a browser:
 
 1. **Vehicle & equipment log** — name, type (truck/van/car/trailer/equipment), year, make/model, VIN + plate (optional), and an optional photo (stored as a data URL in localStorage, capped at 300 KB with a graceful note if too large).
-2. **Fuel log with auto MPG** — date, odometer reading, gallons, price/gal; fill-up cost is automatic and MPG is computed per fill-up (miles since last fill-up ÷ gallons). Odometer readings must increase — a lower reading is rejected with a plain-language error.
+2. **Fuel log with auto MPG** — date, odometer reading, gallons, price/gal; fill-up cost is automatic and MPG is computed per fill-up (miles since last fill-up ÷ gallons). Odometer readings must increase — a lower reading is rejected with a plain-language error. Delete mistaken fill-ups (MPG recomputes), sort history by date/MPG/cost, flag ⚠ low-MPG anomalies (25%+ drop vs recent average — possible fuel waste), and export fuel or service history as CSV.
 3. **Maintenance schedule with due-date alerts** — per-vehicle service types (oil change, tires, brakes, inspection, registration, custom) each with an interval in miles and/or months. Dashboard flags:
    - 🔴 OVERDUE — past the date or mileage
    - 🟡 DUE SOON — within 30 days or 500 miles
@@ -17,7 +17,7 @@ FleetLog AI is a single-page app you open in a browser:
    "Mark done" records a dated service entry (cost, notes) and resets the clock.
 4. **Cost-per-mile calculator** — total fuel + maintenance ÷ miles driven over a selectable period (30 days, 90 days, 12 months, this year, all time).
 5. **Service history per vehicle** — chronological log with dates, readings, type, notes, costs, plus per-vehicle totals.
-6. **Dashboard summary** — fleet size, total spend this year, count needing attention, fleet-wide average MPG.
+6. **Dashboard summary** — fleet size, total spend this year, count needing attention, fleet-wide average MPG, plus fleet search by name/make/model/plate.
 
 Everything runs **locally in the browser** (localStorage). No account, no network, no fees. If you set `OPENAI_API_KEY`, maintenance blurbs could optionally be polished by a model — never required.
 

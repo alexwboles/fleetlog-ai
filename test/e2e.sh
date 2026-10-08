@@ -76,10 +76,55 @@ t(F.mpgFor(100, 100, 10) === null, 'flow6 zero miles = null mpg');
 t(F.fuelCost({ gallons: 0, pricePerGallon: 3 }) === 0, 'flow6 zero gallons = zero cost');
 t(F.validateFuel(empty, { odo: -5, gallons: 10, pricePerGallon: 3 }).ok === false, 'flow6 negative reading rejected');
 
+// FLOW 7: delete a mistaken fill-up, MPG of the next entry recomputes honestly
+var fixer = F.newVehicle({ name:'Fixer' });
+F.addFuelEntry(fixer, { date:'2026-09-01', odo:10000, gallons:20, pricePerGallon:3.5 });
+F.addFuelEntry(fixer, { date:'2026-09-05', odo:10200, gallons:10, pricePerGallon:3.5 }); // mistake: typed 10200 not 10400
+F.addFuelEntry(fixer, { date:'2026-09-10', odo:10400, gallons:20, pricePerGallon:3.5 }); // mpg 20 off the wrong base
+var midId = fixer.fuel[1].id;
+t(F.deleteFuelEntry(fixer, midId) === true, 'flow7 delete returns true');
+fixer.fuel.forEach(function (e, i) {
+  var prev = i > 0 ? fixer.fuel[i - 1] : null;
+  e.mpg = prev ? F.mpgFor(prev.odo, e.odo, e.gallons) : null;
+});
+eq(fixer.fuel.length, 2, 'flow7 two entries left');
+eq(fixer.fuel[1].mpg, 20, 'flow7 mpg recomputed from true previous fill-up');
+
+// FLOW 8: MPG anomaly detection catches a suspicious drop (possible siphoning)
+var thirsty = F.newVehicle({ name:'Thirsty' });
+F.addFuelEntry(thirsty, { date:'2026-08-01', odo:20000, gallons:20, pricePerGallon:3.4 });
+F.addFuelEntry(thirsty, { date:'2026-08-08', odo:20400, gallons:20, pricePerGallon:3.4 }); // 20
+F.addFuelEntry(thirsty, { date:'2026-08-15', odo:20800, gallons:20, pricePerGallon:3.4 }); // 20
+F.addFuelEntry(thirsty, { date:'2026-08-22', odo:21100, gallons:20, pricePerGallon:3.4 }); // 15 -> -25%
+var an = F.mpgAnomalies(thirsty);
+t(Object.keys(an).length === 1, 'flow8 exactly one anomaly');
+var aid = Object.keys(an)[0];
+eq(an[aid].dropPct, 25, 'flow8 dropPct 25');
+t(thirsty.fuel.filter(function (e) { return e.id === aid; })[0].mpg === 15, 'flow8 flagged entry is the bad one');
+
+// FLOW 9: sort fuel history worst-MPG first for a fuel-waste review
+var sorted = F.sortFuel(thirsty, 'mpg', 'asc');
+t(sorted[0].mpg === 15, 'flow9 worst mpg first');
+t(sorted[sorted.length - 1].mpg === null, 'flow9 null-mpg first fill last');
+
+// FLOW 10: export fuel + service CSV for the accountant
+var fuelCsv = F.fuelToCSV(truck).split('\n');
+t(fuelCsv[0] === 'date,odometer,gallons,price_per_gallon,cost,mpg', 'flow10 fuel header');
+t(fuelCsv.length === truck.fuel.length + 1, 'flow10 one row per fill-up');
+var svcCsv = F.serviceToCSV(truck).split('\n');
+t(svcCsv[0] === 'date,service,odometer,cost,notes', 'flow10 service header');
+t(svcCsv.length === truck.history.length + 1, 'flow10 one row per service');
+
+// FLOW 11: dashboard search narrows a big fleet by name/make/plate
+var fleet = [truck, van, excavator];
+t(F.filterVehicles(fleet, '').length === 3, 'flow11 empty query shows all');
+t(F.filterVehicles(fleet, 'transit')[0] === van, 'flow11 search by name');
+t(F.filterVehicles(fleet, 'ex').length >= 1, 'flow11 partial match works');
+
 if (fails.length) { fails.forEach(function (f) { console.error('FAIL: ' + f); }); process.exit(1); }
-console.log('all 6 flows green');
+console.log('all 11 flows green');
 EOF
-[ $? -eq 0 ] && ok "6 e2e flows" || bad "e2e flows"
+[ $? -eq 0 ] && ok "11 e2e flows" || bad "e2e flows"
 
 # HTML sanity: all referenced assets exist
 for f in $(grep -o 'src="[^"]*"\|href="[^"]*"' index.html | cut -d'"' -f2 | grep -v '^http'); do

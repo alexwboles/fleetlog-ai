@@ -64,5 +64,77 @@ grep -q "localStorage" js/app.js && ok "localStorage persistence" || bad "no per
 grep -q "window.FleetLog" js/app.js && ok "app uses FleetLog global" || bad "no FleetLog global use"
 grep -q "data-view" index.html && ok "topbar nav views wired" || bad "nav missing"
 
+# 12: deleteFuelEntry removes one entry and returns true
+node -e "
+var F = require('./lib/logic.js');
+var v = F.newVehicle({name:'Truck'});
+F.addFuelEntry(v, {date:'2026-01-01', odo:10000, gallons:20, pricePerGallon:3.5});
+F.addFuelEntry(v, {date:'2026-01-10', odo:10400, gallons:20, pricePerGallon:3.5});
+var id = v.fuel[0].id;
+if (!F.deleteFuelEntry(v, id)) { console.error('delete returned false'); process.exit(1); }
+if (v.fuel.length !== 1 || v.fuel[0].date !== '2026-01-10') { console.error('wrong entry deleted'); process.exit(1); }
+if (F.deleteFuelEntry(v, 'nope')) { console.error('delete of unknown id should be false'); process.exit(1); }
+console.log('OK');
+" && ok "deleteFuelEntry removes one fill-up" || bad "deleteFuelEntry"
+
+# 13: sortFuel sorts by mpg descending, nulls last
+node -e "
+var F = require('./lib/logic.js');
+var v = F.newVehicle({name:'Truck'});
+F.addFuelEntry(v, {date:'2026-01-01', odo:10000, gallons:20, pricePerGallon:3.5}); // mpg null
+F.addFuelEntry(v, {date:'2026-01-10', odo:10400, gallons:20, pricePerGallon:3.5}); // 20 mpg
+F.addFuelEntry(v, {date:'2026-01-20', odo:10700, gallons:20, pricePerGallon:3.5}); // 15 mpg
+var s = F.sortFuel(v, 'mpg', 'desc');
+if (s[0].mpg !== 20 || s[1].mpg !== 15 || s[2].mpg !== null) { console.error('mpg sort: '+JSON.stringify(s.map(function(e){return e.mpg;}))); process.exit(1); }
+var c = F.sortFuel(v, 'cost', 'asc');
+if (c.length !== 3) { console.error('cost sort length'); process.exit(1); }
+console.log('OK');
+" && ok "sortFuel orders history, nulls last" || bad "sortFuel"
+
+# 14: mpgAnomalies flags a >20% MPG drop
+node -e "
+var F = require('./lib/logic.js');
+var v = F.newVehicle({name:'Truck'});
+F.addFuelEntry(v, {date:'2026-01-01', odo:10000, gallons:20, pricePerGallon:3.5}); // null mpg
+F.addFuelEntry(v, {date:'2026-01-10', odo:10400, gallons:20, pricePerGallon:3.5}); // 20
+F.addFuelEntry(v, {date:'2026-01-20', odo:10800, gallons:20, pricePerGallon:3.5}); // 20
+F.addFuelEntry(v, {date:'2026-01-30', odo:11100, gallons:20, pricePerGallon:3.5}); // 15 -> 25% drop
+F.addFuelEntry(v, {date:'2026-02-05', odo:11500, gallons:20, pricePerGallon:3.5}); // 20 -> fine
+var an = F.mpgAnomalies(v);
+var keys = Object.keys(an);
+if (keys.length !== 1) { console.error('expected 1 anomaly, got '+keys.length); process.exit(1); }
+if (an[keys[0]].mpg !== 15 || an[keys[0]].dropPct !== 25) { console.error('anomaly detail: '+JSON.stringify(an)); process.exit(1); }
+console.log('OK');
+" && ok "mpgAnomalies flags 25% MPG drop" || bad "mpgAnomalies"
+
+# 15: CSV exports — fuel + service
+node -e "
+var F = require('./lib/logic.js');
+var v = F.newVehicle({name:'Truck \"Big\"'});
+F.addFuelEntry(v, {date:'2026-01-01', odo:10000, gallons:20, pricePerGallon:3.5});
+F.markServiceDone(v, {typeId:'oil', date:'2026-01-02', odo:10050, cost:90, notes:'full \"synthetic\"'});
+var fc = F.fuelToCSV(v).split('\n');
+if (fc[0] !== 'date,odometer,gallons,price_per_gallon,cost,mpg') { console.error('fuel header'); process.exit(1); }
+if (fc[1] !== '2026-01-01,10000,20,3.5,70,') { console.error('fuel row: '+fc[1]); process.exit(1); }
+var sc = F.serviceToCSV(v).split('\n');
+if (sc[0] !== 'date,service,odometer,cost,notes') { console.error('svc header'); process.exit(1); }
+if (sc[1] !== '2026-01-02,Oil change,10050,90,\"full \"\"synthetic\"\"\"') { console.error('svc row: '+sc[1]); process.exit(1); }
+console.log('OK');
+" && ok "fuelToCSV/serviceToCSV with quoting" || bad "CSV exports"
+
+# 16: filterVehicles matches name/make/plate, case-insensitive
+node -e "
+var F = require('./lib/logic.js');
+var a = F.newVehicle({name:'F-150 Work Truck', make:'Ford', plate:'ABC-1'});
+var b = F.newVehicle({name:'Transit Van', make:'Ford', plate:'XYZ-9'});
+var all = [a, b];
+if (F.filterVehicles(all, '').length !== 2) { console.error('empty query'); process.exit(1); }
+if (F.filterVehicles(all, 'transit').length !== 1) { console.error('name match'); process.exit(1); }
+if (F.filterVehicles(all, 'ABC-1')[0] !== a) { console.error('plate match'); process.exit(1); }
+if (F.filterVehicles(all, 'ford').length !== 2) { console.error('make match'); process.exit(1); }
+if (F.filterVehicles(all, 'nope').length !== 0) { console.error('no match'); process.exit(1); }
+console.log('OK');
+" && ok "filterVehicles search" || bad "filterVehicles"
+
 echo "--- smoke: $PASS passed, $FAIL failed ---"
 [ "$FAIL" -eq 0 ]
