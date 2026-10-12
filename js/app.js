@@ -15,6 +15,10 @@
   }
   function money(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2); }
   function todayISO() { return F.isoDay(new Date()); }
+  function fmtMonthYear(iso) {
+    var p = String(iso).split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  }
   function getVehicle(id) {
     var found = null;
     load().forEach(function (v) { if (v.id === id) found = v; });
@@ -244,6 +248,28 @@
 
   var fuelSort = 'date', fuelSortDir = 'desc';
 
+  // Avg $/gal per month, last 6 months — small SVG bar chart.
+  function priceTrendSVG(v) {
+    var t = F.fuelPriceTrend(v);
+    if (!t.some(function (x) { return x.avg != null; }))
+      return '<p class="muted small">No fill-ups in the last 6 months — log some fuel to see the price trend.</p>';
+    var max = Math.max.apply(null, t.map(function (x) { return x.avg || 0; }));
+    var W = 560, H = 160, padB = 28, padT = 16;
+    var bw = Math.min(60, (W / t.length) * 0.5);
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="trendchart" role="img" aria-label="Average fuel price per month, last 6 months">';
+    t.forEach(function (m, i) {
+      var cx = (i + 0.5) * (W / t.length);
+      var h = m.avg == null ? 0 : Math.max(6, ((H - padB - padT) * m.avg) / (max || 1));
+      var y = H - padB - h;
+      s += '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
+        '" height="' + h.toFixed(1) + '" class="' + (m.avg == null ? 'tbar empty' : 'tbar') + '"/>';
+      if (m.avg != null)
+        s += '<text x="' + cx.toFixed(1) + '" y="' + (y - 5).toFixed(1) + '" class="tval" text-anchor="middle">$' + m.avg.toFixed(2) + '</text>';
+      s += '<text x="' + cx.toFixed(1) + '" y="' + (H - padB + 16) + '" class="tx" text-anchor="middle">' + m.label + '</text>';
+    });
+    return s + '</svg>';
+  }
+
   function renderFuelHistory(id) {
     var box = document.getElementById('fuelList');
     var v = id ? getVehicle(id) : null;
@@ -259,6 +285,8 @@
         '</td><td><button class="link danger-link" data-delfuel="' + e.id + '">delete</button></td></tr>';
     }).join('');
     box.innerHTML =
+      '<div class="trendbox"><h3>Fuel price trend <span class="muted small">— avg $/gal, last 6 months</span></h3>' +
+      priceTrendSVG(v) + '</div>' +
       '<div class="hist-toolbar"><label class="muted small">Sort <select id="fuelSort">' +
       [['date-desc', 'Newest first'], ['date-asc', 'Oldest first'], ['mpg-desc', 'Best MPG'], ['mpg-asc', 'Worst MPG'],
        ['cost-desc', 'Highest cost'], ['cost-asc', 'Lowest cost']].map(function (o) {
@@ -291,8 +319,7 @@
     });
   }
 
-  function downloadCSV(csv, filename) {
-    var blob = new Blob([csv], { type: 'text/csv' });
+  function downloadCSV(csv, filename) {    var blob = new Blob([csv], { type: 'text/csv' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = filename;
@@ -342,7 +369,12 @@
     var now = todayISO();
     var rows = F.trackedServices(v).map(function (tid) {
       var s = F.serviceStatus(v, tid, now), c = s.config;
-      return '<tr><td><strong>' + esc(c.name) + '</strong><div class="small muted">' + esc(s.reason) + '</div></td>' +
+      var proj = F.projectedDue(v, tid, now);
+      var projLine = proj
+        ? '<div class="small proj">≈ due <b>' + fmtMonthYear(proj.date) + '</b> at current pace (~' +
+          proj.perMonth.toLocaleString('en-US') + ' ' + F.labelFor(v) + '/mo)</div>'
+        : '';
+      return '<tr><td><strong>' + esc(c.name) + '</strong><div class="small muted">' + esc(s.reason) + '</div>' + projLine + '</td>' +
         '<td><input type="number" min="0" step="100" data-im="' + tid + '" value="' + esc(c.intervalMiles || 0) + '" style="width:90px"></td>' +
         '<td><input type="number" min="0" step="1" data-imo="' + tid + '" value="' + esc(c.intervalMonths || 0) + '" style="width:70px"></td>' +
         '<td>' + flagFor(s.status) + '</td></tr>';
@@ -374,15 +406,26 @@
     var hist = (v.history || []).slice().reverse();
     hb.innerHTML = '<h3>Service history</h3>' +
       (hist.length ? '<div class="hist-toolbar"><button class="ghost" id="exportSvc">Export service CSV</button></div>' +
-        '<table class="data"><tr><th>Date</th><th>Service</th><th>Reading</th><th>Cost</th><th>Notes</th></tr>' +
+        '<table class="data"><tr><th>Date</th><th>Service</th><th>Reading</th><th>Cost</th><th>Notes</th><th></th></tr>' +
         hist.map(function (e) {
           return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.typeName) + '</td><td>' + esc(e.odo || '—') +
-            '</td><td>' + money(e.cost) + '</td><td>' + esc(e.notes || '') + '</td></tr>';
+            '</td><td>' + money(e.cost) + '</td><td>' + esc(e.notes || '') + '</td>' +
+            '<td><button class="link danger-link" data-delsvc="' + e.id + '">delete</button></td></tr>';
         }).join('') + '</table>'
         : '<p class="muted">No service records yet.</p>');
     var exBtn = document.getElementById('exportSvc');
     if (exBtn) exBtn.addEventListener('click', function () {
       downloadCSV(F.serviceToCSV(v), v.name.replace(/[^a-z0-9]+/gi, '-') + '-service.csv');
+    });
+    hb.querySelectorAll('[data-delsvc]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Delete this service record? The schedule recomputes from the remaining records.')) return;
+        var vv = getVehicle(document.getElementById('mVehicle').value);
+        if (vv && F.deleteServiceEntry(vv, b.getAttribute('data-delsvc'))) {
+          upsert(vv);
+          renderMaintenance();
+        }
+      });
     });
   }
 

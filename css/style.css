@@ -210,3 +210,13 @@ table.data input[type=number] { padding: 7px 9px; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* usage projections + fuel price trend */
+.proj { color: var(--amber-deep); margin-top: 2px; }
+.trendbox { background: var(--card); border: 1px solid var(--line); padding: 16px; margin-bottom: 18px; }
+.trendbox h3 { margin: 0 0 8px; font-size: 15px; }
+.trendchart { width: 100%; height: auto; display: block; }
+.trendchart .tbar { fill: var(--amber); }
+.trendchart .tbar.empty { fill: var(--line); }
+.trendchart .tval { fill: var(--ink-soft); font-size: 11px; font-weight: 600; }
+.trendchart .tx { fill: var(--muted); font-size: 11px; }
