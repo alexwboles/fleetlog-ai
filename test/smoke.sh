@@ -136,5 +136,58 @@ if (F.filterVehicles(all, 'nope').length !== 0) { console.error('no match'); pro
 console.log('OK');
 " && ok "filterVehicles search" || bad "filterVehicles"
 
+# 17: fuelFromCSV parses valid rows, reports bad ones
+node -e "
+var F = require('./lib/logic.js');
+var res = F.fuelFromCSV('date,odo,gallons,price_per_gallon\n2026-01-01,10000,20,3.5\n2026-01-10,10400,19,3.6\nbad-row\n2026-01-20,0,19,3.6');
+if (res.entries.length !== 2) { console.error('entries '+res.entries.length); process.exit(1); }
+if (res.entries[0].odo !== 10000 || res.entries[1].pricePerGallon !== 3.6) { console.error('row values'); process.exit(1); }
+if (res.errors.length !== 2) { console.error('errors '+res.errors.length+': '+res.errors.join(';')); process.exit(1); }
+var hdr = F.fuelFromCSV('a,b\n1,2');
+if (hdr.entries.length !== 0 || hdr.errors.length !== 1) { console.error('bad header'); process.exit(1); }
+console.log('OK');
+" && ok "fuelFromCSV: 2 parsed, 2 bad rows reported" || bad "fuelFromCSV"
+
+# 18: mpgTrend returns the last N fill-ups with MPG data
+node -e "
+var F = require('./lib/logic.js');
+var v = F.newVehicle({name:'Truck'});
+F.addFuelEntry(v, {date:'2026-01-01', odo:10000, gallons:20, pricePerGallon:3.5}); // mpg null
+F.addFuelEntry(v, {date:'2026-01-10', odo:10400, gallons:20, pricePerGallon:3.5}); // 20 mpg
+F.addFuelEntry(v, {date:'2026-01-20', odo:10800, gallons:25, pricePerGallon:3.5}); // 16 mpg
+var t = F.mpgTrend(v, 12);
+if (t.length !== 2 || t[0].mpg !== 20 || t[1].mpg !== 16) { console.error('trend '+JSON.stringify(t)); process.exit(1); }
+var t1 = F.mpgTrend(v, 1);
+if (t1.length !== 1 || t1[0].mpg !== 16) { console.error('trend limit'); process.exit(1); }
+console.log('OK');
+" && ok "mpgTrend: last fill-ups with MPG" || bad "mpgTrend"
+
+# 19: compareVehicles ranks by total spend desc, with MPG and attention
+node -e "
+var F = require('./lib/logic.js');
+var a = F.newVehicle({name:'Cheap Car', type:'car'});
+var b = F.newVehicle({name:'Work Truck', type:'truck'});
+F.addFuelEntry(a, {date:'2026-01-01', odo:10000, gallons:10, pricePerGallon:3.5});
+F.addFuelEntry(a, {date:'2026-01-10', odo:10300, gallons:10, pricePerGallon:3.5});
+F.addFuelEntry(b, {date:'2026-01-01', odo:50000, gallons:30, pricePerGallon:3.5});
+F.addFuelEntry(b, {date:'2026-01-10', odo:50600, gallons:30, pricePerGallon:3.5});
+F.markServiceDone(b, {typeId:'oil', date:'2026-01-11', odo:50600, cost:120});
+var rows = F.compareVehicles([a, b], '2026-02-01');
+if (rows.length !== 2) { console.error('rows'); process.exit(1); }
+if (rows[0].name !== 'Work Truck' || rows[1].name !== 'Cheap Car') { console.error('order '+rows.map(function(r){return r.name;}).join(',')); process.exit(1); }
+if (rows[0].totalSpend !== 330 || rows[1].totalSpend !== 70) { console.error('spend '+JSON.stringify(rows.map(function(r){return r.totalSpend;}))); process.exit(1); }
+if (rows[0].avgMpg !== 10 || rows[1].avgMpg !== 15) { console.error('mpg '+rows[0].avgMpg+'/'+rows[1].avgMpg); process.exit(1); }
+if (typeof rows[0].attention !== 'number') { console.error('attention'); process.exit(1); }
+console.log('OK');
+" && ok "compareVehicles: spend-ranked rows" || bad "compareVehicles"
+
+# 20: new DOM hooks wired
+for id in fuelCsv fuelCsvMsg compareTable; do
+  grep -q "id=\"$id\"" index.html && ok "index.html has #$id" || bad "index.html missing #$id"
+done
+grep -q "mpgTrendSVG" js/app.js && ok "app renders mpgTrendSVG" || bad "mpgTrendSVG missing"
+grep -q "compareVehicles" js/app.js && ok "app renders comparison table" || bad "compareVehicles missing"
+grep -q "fuelFromCSV" js/app.js && ok "app wires fuel CSV import" || bad "fuelFromCSV import missing"
+
 echo "--- smoke: $PASS passed, $FAIL failed ---"
 [ "$FAIL" -eq 0 ]

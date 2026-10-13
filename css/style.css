@@ -220,3 +220,8 @@ table.data input[type=number] { padding: 7px 9px; font-size: 13px; }
 .trendchart .tbar.empty { fill: var(--line); }
 .trendchart .tval { fill: var(--ink-soft); font-size: 11px; font-weight: 600; }
 .trendchart .tx { fill: var(--muted); font-size: 11px; }
+.trendchart .mline { stroke: var(--green); stroke-width: 2.5; }
+.trendchart .mdot { fill: var(--green); }
+.trendchart .tgrid { stroke: var(--line); stroke-width: 1; }
+.good { color: var(--green); font-weight: 600; }
+.bad { color: var(--red); font-weight: 600; }

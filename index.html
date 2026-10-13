@@ -46,6 +46,10 @@
     <h3 class="section-title">Fleet overview</h3>
     <div class="fleet-search"><input id="fleetSearch" type="search" placeholder="Search fleet — name, make, model, plate…"></div>
     <div id="fleetCards" class="vlist"><p class="muted">No vehicles yet — add your first under the Vehicles tab.</p></div>
+    <div class="card" style="margin-top:18px">
+      <div class="card-head"><h3>Fleet comparison</h3><span class="card-note">All-time spend, economy, attention</span></div>
+      <div id="compareTable"><p class="muted">Add at least two vehicles to compare them head-to-head.</p></div>
+    </div>
   </section>
 
   <!-- VEHICLES VIEW -->
@@ -111,6 +115,12 @@
         <div class="card-head"><h3>Fuel history</h3></div>
         <label class="field"><span class="lbl">Vehicle</span><select id="fHistVehicle"></select></label>
         <div id="fuelList"><p class="muted">Select a vehicle to see its fuel log.</p></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Import fuel CSV</h3></div>
+        <p class="muted small">Header: <code>date,odo,gallons,price_per_gallon</code> — date as YYYY-MM-DD. Rows are added to the vehicle picked in Fuel history, oldest first.</p>
+        <label class="field"><span class="lbl">CSV file</span><input id="fuelCsv" type="file" accept=".csv,text/csv"></label>
+        <p id="fuelCsvMsg" class="muted small"></p>
       </div>
     </div>
   </section>

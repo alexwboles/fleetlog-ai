@@ -108,6 +108,24 @@
         cards.appendChild(div);
       });
     }
+
+    // head-to-head comparison table
+    var cmp = document.getElementById('compareTable');
+    var rows = F.compareVehicles(list, now);
+    if (rows.length < 2) {
+      cmp.innerHTML = '<p class="muted">Add at least two vehicles to compare them head-to-head.</p>';
+    } else {
+      cmp.innerHTML = '<table class="data"><tr><th>Vehicle</th><th class="num">Fuel</th><th class="num">Maint.</th>' +
+        '<th class="num">Total</th><th class="num">Avg MPG</th><th class="num">$/mile</th><th class="num">Attention</th></tr>' +
+        rows.map(function (r) {
+          return '<tr><td><strong>' + esc(r.name) + '</strong> <span class="muted small">' + esc(r.type) + '</span></td>' +
+            '<td class="num">' + money(r.fuelSpend) + '</td><td class="num">' + money(r.maintSpend) + '</td>' +
+            '<td class="num"><strong>' + money(r.totalSpend) + '</strong></td>' +
+            '<td class="num">' + (r.avgMpg == null ? '—' : r.avgMpg) + '</td>' +
+            '<td class="num">' + (r.costPerMile == null ? '—' : money(r.costPerMile)) + '</td>' +
+            '<td class="num">' + (r.attention ? '<span class="flag yellow">' + r.attention + '</span>' : '<span class="flag green">0</span>') + '</td></tr>';
+        }).join('') + '</table>';
+    }
   }
 
   // ---------- vehicles ----------
@@ -239,6 +257,37 @@
     alert('Saved — ' + money(res.entry.cost) + (res.entry.mpg != null ? ' · ' + res.entry.mpg + ' MPG' : ''));
   });
 
+  document.getElementById('fuelCsv').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    var msg = document.getElementById('fuelCsvMsg');
+    if (!f) return;
+    var id = document.getElementById('fHistVehicle').value || document.getElementById('fVehicle').value;
+    var v = getVehicle(id);
+    if (!v) { msg.innerHTML = '<span class="bad">Add a vehicle first.</span>'; e.target.value = ''; return; }
+    var r = new FileReader();
+    r.onload = function () {
+      var res = F.fuelFromCSV(r.result);
+      var okN = 0, skipped = [];
+      res.entries.slice().sort(function (a, b) { return a.odo - b.odo; }).forEach(function (en) {
+        var rr = F.addFuelEntry(v, en);
+        if (rr.ok) okN++;
+        else skipped.push('odo ' + en.odo + ': ' + rr.error);
+      });
+      upsert(v);
+      var hs = document.getElementById('fHistVehicle');
+      hs.value = v.id;
+      renderFuelHistory(v.id);
+      var bits = [];
+      if (okN) bits.push('Imported ' + okN + ' fill-up' + (okN === 1 ? '' : 's') + ' into ' + v.name);
+      var allErrs = res.errors.concat(skipped);
+      if (allErrs.length) bits.push(allErrs.length + ' row' + (allErrs.length === 1 ? '' : 's') + ' skipped');
+      msg.innerHTML = '<span class="' + (okN ? 'good' : 'bad') + '">' + esc(bits.join(' · ') || 'Nothing imported') + '.</span>' +
+        (allErrs.length ? '<br><span class="muted small">' + esc(allErrs.slice(0, 3).join('; ')) + (allErrs.length > 3 ? ' …' : '') + '</span>' : '');
+      e.target.value = '';
+    };
+    r.readAsText(f);
+  });
+
   document.getElementById('fHistVehicle').addEventListener('change', function () {
     fuelSort = 'date'; fuelSortDir = 'desc';
     var sel = document.getElementById('fuelSort');
@@ -270,6 +319,31 @@
     return s + '</svg>';
   }
 
+  // MPG over time — last 12 fill-ups, SVG line chart.
+  function mpgTrendSVG(v) {
+    var t = F.mpgTrend(v, 12);
+    if (t.length < 2)
+      return '<p class="muted small">Need at least 2 fill-ups with MPG data to chart the trend.</p>';
+    var W = 560, H = 160, padL = 36, padB = 28, padT = 16, padR = 12;
+    var mpgs = t.map(function (p) { return p.mpg; });
+    var min = Math.min.apply(null, mpgs), max = Math.max.apply(null, mpgs);
+    if (max - min < 1) { max += 0.5; min -= 0.5; }
+    function x(i) { return padL + (i / (t.length - 1)) * (W - padL - padR); }
+    function y(m) { return padT + (1 - (m - min) / (max - min)) * (H - padT - padB); }
+    var pts = t.map(function (p, i) { return x(i).toFixed(1) + ',' + y(p.mpg).toFixed(1); }).join(' ');
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="trendchart" role="img" aria-label="MPG trend, last ' + t.length + ' fill-ups">';
+    s += '<line x1="' + padL + '" y1="' + y(max).toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y(max).toFixed(1) + '" class="tgrid"/>';
+    s += '<text x="' + (padL - 6) + '" y="' + (y(max) + 4).toFixed(1) + '" class="tx" text-anchor="end">' + max.toFixed(0) + '</text>';
+    s += '<line x1="' + padL + '" y1="' + y(min).toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y(min).toFixed(1) + '" class="tgrid"/>';
+    s += '<text x="' + (padL - 6) + '" y="' + (y(min) + 4).toFixed(1) + '" class="tx" text-anchor="end">' + min.toFixed(0) + '</text>';
+    s += '<polyline points="' + pts + '" class="mline" fill="none"/>';
+    t.forEach(function (p, i) {
+      s += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.mpg).toFixed(1) + '" r="3.5" class="mdot"><title>' + esc(p.date) + ': ' + p.mpg + ' MPG</title></circle>';
+    });
+    s += '<text x="' + x(t.length - 1).toFixed(1) + '" y="' + (H - padB + 16) + '" class="tx" text-anchor="end">' + esc(t[t.length - 1].date) + '</text>';
+    return s + '</svg>';
+  }
+
   function renderFuelHistory(id) {
     var box = document.getElementById('fuelList');
     var v = id ? getVehicle(id) : null;
@@ -287,6 +361,8 @@
     box.innerHTML =
       '<div class="trendbox"><h3>Fuel price trend <span class="muted small">— avg $/gal, last 6 months</span></h3>' +
       priceTrendSVG(v) + '</div>' +
+      '<div class="trendbox"><h3>MPG trend <span class="muted small">— last 12 fill-ups</span></h3>' +
+      mpgTrendSVG(v) + '</div>' +
       '<div class="hist-toolbar"><label class="muted small">Sort <select id="fuelSort">' +
       [['date-desc', 'Newest first'], ['date-asc', 'Oldest first'], ['mpg-desc', 'Best MPG'], ['mpg-asc', 'Worst MPG'],
        ['cost-desc', 'Highest cost'], ['cost-asc', 'Lowest cost']].map(function (o) {

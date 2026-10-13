@@ -121,10 +121,40 @@ t(F.filterVehicles(fleet, '').length === 3, 'flow11 empty query shows all');
 t(F.filterVehicles(fleet, 'transit')[0] === van, 'flow11 search by name');
 t(F.filterVehicles(fleet, 'ex').length >= 1, 'flow11 partial match works');
 
+// FLOW 12: fuel CSV import — parse, apply oldest-first, bad rows reported
+var importer = F.newVehicle({ name:'Import Rig', type:'truck' });
+var csvText = 'date,odo,gallons,price_per_gallon\n2026-03-01,60000,25,3.4\n2026-03-08,60400,20,3.45\n2026-03-15,not-a-number,20,3.5\n2026-03-22,60800,20,3.5';
+var parsed = F.fuelFromCSV(csvText);
+eq(parsed.entries.length, 3, 'flow12 3 valid rows parsed');
+eq(parsed.errors.length, 1, 'flow12 1 bad row reported');
+parsed.entries.slice().sort(function (a, b) { return a.odo - b.odo; }).forEach(function (en) {
+  var rr = F.addFuelEntry(importer, en);
+  t(rr.ok, 'flow12 row applied: ' + en.date);
+});
+eq(importer.fuel.length, 3, 'flow12 3 fill-ups on the vehicle');
+eq(importer.fuel[1].mpg, 20, 'flow12 mpg computed on imported rows');
+
+// FLOW 13: MPG trend + fleet comparison
+var trend = F.mpgTrend(thirsty, 12);
+t(trend.length === 3 && trend[0].mpg === 20 && trend[2].mpg === 15, 'flow13 mpgTrend last fill-ups in order');
+var cmp = F.compareVehicles([truck, van, thirsty], '2026-09-28');
+t(cmp.length === 3, 'flow13 comparison covers all vehicles');
+t(cmp[0].totalSpend >= cmp[1].totalSpend && cmp[1].totalSpend >= cmp[2].totalSpend, 'flow13 sorted by total spend desc');
+t(cmp.every(function (r) { return r.name && typeof r.attention === 'number'; }), 'flow13 rows carry name + attention');
+var vanRow = cmp.filter(function (r) { return r.name === 'Transit Van'; })[0];
+t(vanRow.attention >= 1, 'flow13 van flagged for attention');
+
+// FLOW 14: DOM hosts the new fuel import + comparison widgets
+var fs2 = require('fs');
+var html = fs2.readFileSync('./index.html', 'utf8');
+t(/id="fuelCsv"/.test(html) && /id="fuelCsvMsg"/.test(html) && /id="compareTable"/.test(html), 'flow14 DOM hosts fuelCsv, fuelCsvMsg, compareTable');
+var appJs = fs2.readFileSync('./js/app.js', 'utf8');
+t(/mpgTrendSVG/.test(appJs) && /compareVehicles/.test(appJs) && /fuelFromCSV/.test(appJs), 'flow14 app wires the three features');
+
 if (fails.length) { fails.forEach(function (f) { console.error('FAIL: ' + f); }); process.exit(1); }
-console.log('all 11 flows green');
+console.log('all 14 flows green');
 EOF
-[ $? -eq 0 ] && ok "11 e2e flows" || bad "e2e flows"
+[ $? -eq 0 ] && ok "14 e2e flows" || bad "e2e flows"
 
 # HTML sanity: all referenced assets exist
 for f in $(grep -o 'src="[^"]*"\|href="[^"]*"' index.html | cut -d'"' -f2 | grep -v '^http'); do
