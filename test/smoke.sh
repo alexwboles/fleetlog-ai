@@ -191,3 +191,17 @@ grep -q "fuelFromCSV" js/app.js && ok "app wires fuel CSV import" || bad "fuelFr
 
 echo "--- smoke: $PASS passed, $FAIL failed ---"
 [ "$FAIL" -eq 0 ]
+
+# redesign sweep: vitals chips, mpg ring, deep-link, yard theme
+node -e "
+var fs = require('fs'), a = fs.readFileSync('./js/app.js', 'utf8');
+['mpgRing', 'openMaintenanceFor', 'ring-fg', 'class=\"vital'].forEach(function (s) {
+  if (a.indexOf(s) < 0) { console.error('missing ' + s); process.exit(1); }
+});
+var c = fs.readFileSync('./css/style.css', 'utf8');
+['--yard: #ffc400', '.vital.mpg', '.mpg-ring', '.alert-row .sev', '--bg: #141619'].forEach(function (s) {
+  if (c.indexOf(s) < 0) { console.error('css missing ' + s); process.exit(1); }
+});
+console.log('OK');" 2>/dev/null && ok "yard theme + fleet card vitals + deep-link" || bad "redesign checks"
+echo "--- smoke: $PASS passed, $FAIL failed ---"
+exit $((FAIL > 0))

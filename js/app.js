@@ -51,6 +51,30 @@
     return '<span class="flag ' + m[0] + '">' + m[1] + '</span>';
   }
 
+  // SVG fuel-economy ring (40 MPG = full ring).
+  function mpgRing(mpg) {
+    if (mpg == null) return '<span class="mpg-ring" aria-label="no economy data yet"></span>';
+    var r = 26, c = 2 * Math.PI * r;
+    var frac = Math.max(0, Math.min(1, mpg / 40));
+    return '<span class="mpg-ring" role="img" aria-label="average economy ' + mpg + ' MPG">' +
+      '<svg width="74" height="74" viewBox="0 0 74 74">' +
+      '<circle cx="37" cy="37" r="' + r + '" class="ring-bg"/>' +
+      '<circle cx="37" cy="37" r="' + r + '" class="ring-fg" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + (c * (1 - frac)).toFixed(1) + '" transform="rotate(-90 37 37)"/>' +
+      '</svg><span class="ring-num">' + mpg + '</span></span>';
+  }
+
+  // Deep-link from dashboard cards/alerts into the maintenance view.
+  function openMaintenanceFor(vehicleId) {
+    document.querySelectorAll('.topbar nav button').forEach(function (x) { x.classList.remove('active'); });
+    document.querySelector('[data-view="maintenance"]').classList.add('active');
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.add('hidden'); });
+    document.getElementById('view-maintenance').classList.remove('hidden');
+    fillVehicleSelects();
+    var sel = document.getElementById('mVehicle');
+    sel.value = vehicleId;
+    renderMaintenance();
+  }
+
   // ---------- dashboard ----------
   var fleetSearchQuery = '';
   document.getElementById('fleetSearch').addEventListener('input', function (e) {
@@ -82,8 +106,17 @@
       alerts.forEach(function (x) {
         var row = document.createElement('div');
         row.className = 'alert-row';
-        row.innerHTML = '<div><strong>' + esc(x.vehicle.name) + '</strong> — ' + esc(x.a.name) +
+        row.setAttribute('role', 'link');
+        row.setAttribute('tabindex', '0');
+        row.setAttribute('title', 'Open maintenance for ' + x.vehicle.name);
+        row.innerHTML = '<span class="sev ' + x.a.status + '"></span>' +
+          '<div><strong>' + esc(x.vehicle.name) + '</strong> — ' + esc(x.a.name) +
           '<div class="small muted">' + esc(x.a.reason) + '</div></div>' + flagFor(x.a.status);
+        (function (vid) {
+          var go = function () { openMaintenanceFor(vid); };
+          row.addEventListener('click', go);
+          row.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') go(); });
+        })(x.vehicle.id);
         ab.appendChild(row);
       });
     }
@@ -96,15 +129,31 @@
       cards.innerHTML = '';
       visible.forEach(function (v) {
         var t = F.vehicleTotals(v);
+        var cpm = F.costPerMile(v, null, null);
+        var reading = F.currentReading(v);
         var att = F.needsAttention(v, now).filter(function (a) { return a.status !== 'ok'; }).length;
         var div = document.createElement('div');
-        div.className = 'vrow';
+        div.className = 'vrow fleet';
+        div.setAttribute('role', 'link');
+        div.setAttribute('tabindex', '0');
+        div.setAttribute('title', 'Open maintenance for ' + v.name);
+        var vitals = '<span class="vital">$' + t.total.toFixed(2) + ' total</span>' +
+          (reading != null ? '<span class="vital">' + esc(reading.toLocaleString('en-US')) + ' ' + esc(F.labelFor(v) === 'hours' ? 'hrs' : 'mi') + '</span>' : '') +
+          (cpm.avgMpg != null ? '<span class="vital mpg">' + cpm.avgMpg + ' MPG avg</span>' : '') +
+          (cpm.costPerMile != null ? '<span class="vital">$' + cpm.costPerMile.toFixed(3) + '/mi</span>' : '');
         div.innerHTML =
           (v.photo ? '<img src="' + v.photo + '" alt="photo of ' + esc(v.name) + '">' : '') +
           '<div class="meta"><div class="nm">' + esc(v.name) + '</div>' +
           '<div class="sub">' + esc([v.year, v.make, v.model].filter(Boolean).join(' ')) +
-          ' · ' + esc(v.type) + ' · ' + money(t.total) + ' total spend</div></div>' +
+          ' · ' + esc(v.type) + '</div>' +
+          '<div class="vitals">' + vitals + '</div></div>' +
+          mpgRing(cpm.avgMpg) +
           (att ? '<span class="flag yellow">' + att + ' to check</span>' : '<span class="flag green">OK</span>');
+        (function (vid) {
+          var go = function () { openMaintenanceFor(vid); };
+          div.addEventListener('click', go);
+          div.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') go(); });
+        })(v.id);
         cards.appendChild(div);
       });
     }
